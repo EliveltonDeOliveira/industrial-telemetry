@@ -6,3 +6,9 @@ scrape_configs:
   - job_name: prometheus
     static_configs:
       - targets: ["localhost:9090"]
+  - job_name: simulator
+    static_configs:
+      - targets: ["simulator:8084"]
+  - job_name: bridge
+    static_configs:
+      - targets: ["bridge:8080"]

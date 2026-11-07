@@ -140,6 +140,35 @@ services:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
 
+  simulator:
+    build:
+      context: ..
+      args:
+        SERVICE: simulator
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8084:8084"
+    environment:
+      SIM_MACHINES: ${SIM_MACHINES:-3}
+      SIM_INTERVAL: ${SIM_INTERVAL:-1s}
+    restart: unless-stopped
+
+  bridge:
+    build:
+      context: ..
+      args:
+        SERVICE: bridge
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:8080:8080"
+    restart: unless-stopped
+
   grafana:
     image: grafana/grafana:13.3.0
     ports:

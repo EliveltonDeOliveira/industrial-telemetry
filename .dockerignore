@@ -1,0 +1,6 @@
+# The build context only needs the Go module.
+*
+!go.mod
+!go.sum
+!internal/
+!services/
