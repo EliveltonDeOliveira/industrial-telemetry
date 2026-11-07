@@ -1,0 +1,31 @@
+# Local assistant instructions
+CLAUDE.md
+
+# Go
+/bin/
+*.exe
+*.test
+*.out
+coverage.*
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# Zephyr build output
+firmware/microbit/build/
+
+# Local SQLite files (gateway offline buffer)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Environment and editors
+.env
+.idea/
+.vscode/
+.DS_Store
