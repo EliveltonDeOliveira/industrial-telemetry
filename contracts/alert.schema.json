@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Alert",
+  "description": "An anomaly detected on a machine. Published on Kafka alertas by the anomaly service. Every field is required and null counts as missing. Unknown fields are ignored.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "alert_id",
+    "machine_id",
+    "ts",
+    "type",
+    "severity",
+    "value",
+    "threshold"
+  ],
+  "properties": {
+    "schema_version": {
+      "description": "Message format version.",
+      "const": 1
+    },
+    "alert_id": {
+      "description": "Unique alert identifier, a lowercase UUID.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "machine_id": {
+      "description": "Machine identifier, same rules as in telemetry.",
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,64}$"
+    },
+    "ts": {
+      "description": "Detection time in RFC 3339, with time zone.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "type": {
+      "description": "Alert type.",
+      "enum": ["temperatura_alta", "vibracao_alta", "parada_longa"]
+    },
+    "severity": {
+      "description": "Alert severity.",
+      "enum": ["baixa", "media", "alta"]
+    },
+    "value": {
+      "description": "Observed value, in the unit of the alert type: degrees Celsius for temperatura_alta, g for vibracao_alta, seconds stopped for parada_longa.",
+      "type": "number"
+    },
+    "threshold": {
+      "description": "Limit that was crossed, in the same unit as value.",
+      "type": "number"
+    }
+  }
+}

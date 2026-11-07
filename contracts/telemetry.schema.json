@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Telemetry",
+  "description": "One machine reading. Published on MQTT fabrica/{machine_id}/telemetria and forwarded to Kafka telemetria.bruta. Every field is required and null counts as missing. Unknown fields are ignored.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "machine_id",
+    "boot_id",
+    "seq",
+    "ts",
+    "state",
+    "good_total",
+    "scrap_total",
+    "temperature_c",
+    "vibration_rms"
+  ],
+  "properties": {
+    "schema_version": {
+      "description": "Message format version.",
+      "const": 1
+    },
+    "machine_id": {
+      "description": "Machine identifier, also the Kafka key. Safe as an MQTT topic level. Filled by the gateway for the micro:bit.",
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,64}$"
+    },
+    "boot_id": {
+      "description": "Random number generated each time the machine powers on. seq and the counters restart with it.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295
+    },
+    "seq": {
+      "description": "Reading sequence within the same boot_id.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "ts": {
+      "description": "Reading time in RFC 3339, with time zone. Filled by the gateway for the micro:bit.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "state": {
+      "description": "Machine operating state.",
+      "enum": ["running", "stopped"]
+    },
+    "good_total": {
+      "description": "Good parts counted since the machine powered on.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "scrap_total": {
+      "description": "Scrap parts counted since the machine powered on.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "temperature_c": {
+      "description": "Temperature in degrees Celsius, within the industrial electronics range. Values outside it are sensor faults.",
+      "type": "number",
+      "minimum": -40,
+      "maximum": 125
+    },
+    "vibration_rms": {
+      "description": "RMS acceleration in g, up to the full scale of the micro:bit accelerometer.",
+      "type": "number",
+      "minimum": 0,
+      "maximum": 16
+    }
+  }
+}

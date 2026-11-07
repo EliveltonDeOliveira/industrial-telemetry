@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "machine_id": "maq-03",
+  "boot_id": 402117,
+  "seq": 3,
+  "ts": "2026-11-07T14:03:00Z",
+  "state": "running",
+  "good_total": 2,
+  "scrap_total": 0,
+  "temperature_c": 33.1,
+  "vibration_rms": 0.51,
+  "firmware_version": "1.4.0"
+}

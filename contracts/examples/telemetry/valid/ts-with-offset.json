@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "machine_id": "maq-02",
+  "boot_id": 1593024788,
+  "seq": 57,
+  "ts": "2026-11-07T11:03:00-03:00",
+  "state": "running",
+  "good_total": 40,
+  "scrap_total": 1,
+  "temperature_c": 29.8,
+  "vibration_rms": 0.38
+}

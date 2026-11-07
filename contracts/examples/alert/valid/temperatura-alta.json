@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "alert_id": "8f2c1a7e-3b1d-4c6e-9a0f-2d5b7e9c1a44",
+  "machine_id": "maq-01",
+  "ts": "2026-11-07T14:05:00Z",
+  "type": "temperatura_alta",
+  "severity": "alta",
+  "value": 78.2,
+  "threshold": 65.0
+}

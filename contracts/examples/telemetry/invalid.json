@@ -1,0 +1,57 @@
+[
+  {
+    "case": "missing_machine_id",
+    "field": "machine_id",
+    "message": {"schema_version": 1, "boot_id": 2849120113, "seq": 1042, "ts": "2026-11-07T14:03:00Z", "state": "running", "good_total": 812, "scrap_total": 9, "temperature_c": 31.5, "vibration_rms": 0.42}
+  },
+  {
+    "case": "null_seq",
+    "field": "seq",
+    "message": {"schema_version": 1, "machine_id": "maq-01", "boot_id": 2849120113, "seq": null, "ts": "2026-11-07T14:03:00Z", "state": "running", "good_total": 812, "scrap_total": 9, "temperature_c": 31.5, "vibration_rms": 0.42}
+  },
+  {
+    "case": "unsupported_schema_version",
+    "field": "schema_version",
+    "message": {"schema_version": 2, "machine_id": "maq-01", "boot_id": 2849120113, "seq": 1042, "ts": "2026-11-07T14:03:00Z", "state": "running", "good_total": 812, "scrap_total": 9, "temperature_c": 31.5, "vibration_rms": 0.42}
+  },
+  {
+    "case": "machine_id_with_slash",
+    "field": "machine_id",
+    "message": {"schema_version": 1, "machine_id": "maq/01", "boot_id": 2849120113, "seq": 1042, "ts": "2026-11-07T14:03:00Z", "state": "running", "good_total": 812, "scrap_total": 9, "temperature_c": 31.5, "vibration_rms": 0.42}
+  },
+  {
+    "case": "boot_id_above_uint32",
+    "field": "boot_id",
+    "message": {"schema_version": 1, "machine_id": "maq-01", "boot_id": 4294967296, "seq": 1042, "ts": "2026-11-07T14:03:00Z", "state": "running", "good_total": 812, "scrap_total": 9, "temperature_c": 31.5, "vibration_rms": 0.42}
+  },
+  {
+    "case": "seq_as_string",
+    "field": "seq",
+    "message": {"schema_version": 1, "machine_id": "maq-01", "boot_id": 2849120113, "seq": "1042", "ts": "2026-11-07T14:03:00Z", "state": "running", "good_total": 812, "scrap_total": 9, "temperature_c": 31.5, "vibration_rms": 0.42}
+  },
+  {
+    "case": "ts_without_time_zone",
+    "field": "ts",
+    "message": {"schema_version": 1, "machine_id": "maq-01", "boot_id": 2849120113, "seq": 1042, "ts": "2026-11-07T14:03:00", "state": "running", "good_total": 812, "scrap_total": 9, "temperature_c": 31.5, "vibration_rms": 0.42}
+  },
+  {
+    "case": "unknown_state",
+    "field": "state",
+    "message": {"schema_version": 1, "machine_id": "maq-01", "boot_id": 2849120113, "seq": 1042, "ts": "2026-11-07T14:03:00Z", "state": "idle", "good_total": 812, "scrap_total": 9, "temperature_c": 31.5, "vibration_rms": 0.42}
+  },
+  {
+    "case": "negative_good_total",
+    "field": "good_total",
+    "message": {"schema_version": 1, "machine_id": "maq-01", "boot_id": 2849120113, "seq": 1042, "ts": "2026-11-07T14:03:00Z", "state": "running", "good_total": -1, "scrap_total": 9, "temperature_c": 31.5, "vibration_rms": 0.42}
+  },
+  {
+    "case": "temperature_out_of_range",
+    "field": "temperature_c",
+    "message": {"schema_version": 1, "machine_id": "maq-01", "boot_id": 2849120113, "seq": 1042, "ts": "2026-11-07T14:03:00Z", "state": "running", "good_total": 812, "scrap_total": 9, "temperature_c": 300.0, "vibration_rms": 0.42}
+  },
+  {
+    "case": "negative_vibration",
+    "field": "vibration_rms",
+    "message": {"schema_version": 1, "machine_id": "maq-01", "boot_id": 2849120113, "seq": 1042, "ts": "2026-11-07T14:03:00Z", "state": "running", "good_total": 812, "scrap_total": 9, "temperature_c": 31.5, "vibration_rms": -0.1}
+  }
+]
