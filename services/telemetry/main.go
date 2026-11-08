@@ -2,8 +2,9 @@
 // drops repeated readings and writes the rest to ClickHouse in batches. Offsets
 // are committed only after the insert, so delivery is at least once.
 //
-// It also serves the monitoring API: GET /machines and GET /machines/{id}/oee,
-// with the machine registry from PostgreSQL and the readings from ClickHouse.
+// It also serves the monitoring API: GET /machines, GET /machines/{id}/oee and
+// GET /machines/{id}/oee/shifts, with the machine registry from PostgreSQL, the
+// readings from ClickHouse and the OEE per shift that etl-oee writes there.
 //
 // Configuration:
 //

@@ -74,9 +74,11 @@ type fakeStore struct {
 	machines []machine
 	last     map[string]lastReading
 	readings []oee.Reading
+	shifts   []shiftOEE
 	err      error
 
 	from, to time.Time
+	date     string
 }
 
 func (f *fakeStore) Machines(context.Context) ([]machine, error) {
@@ -99,6 +101,11 @@ func (f *fakeStore) LastReadings(context.Context) (map[string]lastReading, error
 func (f *fakeStore) Readings(_ context.Context, _ string, from, to time.Time) ([]oee.Reading, error) {
 	f.from, f.to = from, to
 	return f.readings, f.err
+}
+
+func (f *fakeStore) Shifts(_ context.Context, _ string, date string) ([]shiftOEE, error) {
+	f.date = date
+	return f.shifts, f.err
 }
 
 var registry = []machine{
@@ -229,6 +236,82 @@ func TestMachineOEEQueriesThePeriod(t *testing.T) {
 	get(f, "/machines/maq-01/oee?from=2026-11-07T14:00:00Z")
 	if want := time.Date(2026, 11, 7, 14, 0, 0, 0, time.UTC); !f.from.Equal(want) || !f.to.Equal(now.Truncate(time.Millisecond)) {
 		t.Errorf("queried [%v, %v), want [%v, now)", f.from, f.to, want)
+	}
+}
+
+func TestMachineShifts(t *testing.T) {
+	start := time.Date(2026, 11, 8, 9, 0, 0, 0, time.UTC) // 06:00 in Sao Paulo
+	shift := shiftOEE{Shift: "06-14", Start: start, End: start.Add(8 * time.Hour), PlannedS: 28800, RunningS: 14400,
+		Good: 3000, Scrap: 60, Availability: 0.5, Performance: 0.85, Quality: 0.98, OEE: 0.4165,
+		ComputedAt: start.Add(8*time.Hour + 5*time.Minute)}
+	tests := []struct {
+		name       string
+		target     string
+		store      *fakeStore
+		wantStatus int
+		wantBody   string
+	}{
+		{
+			name:       "shifts of the date",
+			target:     "/machines/maq-01/oee/shifts?date=2026-11-08",
+			store:      &fakeStore{machines: registry, shifts: []shiftOEE{shift}},
+			wantStatus: http.StatusOK,
+			wantBody: `{"machine_id": "maq-01", "date": "2026-11-08", "shifts": [
+				{"shift": "06-14", "start": "2026-11-08T09:00:00Z", "end": "2026-11-08T17:00:00Z",
+				 "planned_s": 28800, "running_s": 14400, "good": 3000, "scrap": 60,
+				 "availability": 0.5, "performance": 0.85, "quality": 0.98, "oee": 0.4165,
+				 "computed_at": "2026-11-08T17:05:00Z"}]}`,
+		},
+		{
+			name:       "no shifts computed yet",
+			target:     "/machines/maq-01/oee/shifts?date=2026-11-09",
+			store:      &fakeStore{machines: registry},
+			wantStatus: http.StatusOK,
+			wantBody:   `{"machine_id": "maq-01", "date": "2026-11-09", "shifts": []}`,
+		},
+		{
+			name:       "date missing",
+			target:     "/machines/maq-01/oee/shifts",
+			store:      &fakeStore{machines: registry},
+			wantStatus: http.StatusBadRequest,
+			wantBody:   `{"error": "date: want a local date, such as 2026-11-08"}`,
+		},
+		{
+			name:       "date with time",
+			target:     "/machines/maq-01/oee/shifts?date=2026-11-08T06:00:00Z",
+			store:      &fakeStore{machines: registry},
+			wantStatus: http.StatusBadRequest,
+			wantBody:   `{"error": "date: want a local date, such as 2026-11-08"}`,
+		},
+		{
+			name:       "machine not registered",
+			target:     "/machines/maq-99/oee/shifts?date=2026-11-08",
+			store:      &fakeStore{machines: registry},
+			wantStatus: http.StatusNotFound,
+			wantBody:   `{"error": "machine not found"}`,
+		},
+		{
+			name:       "database failure",
+			target:     "/machines/maq-01/oee/shifts?date=2026-11-08",
+			store:      &fakeStore{machines: registry, err: errors.New("connection refused")},
+			wantStatus: http.StatusInternalServerError,
+			wantBody:   `{"error": "internal error"}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			status, body := get(tt.store, tt.target)
+			if status != tt.wantStatus {
+				t.Errorf("status %d, want %d", status, tt.wantStatus)
+			}
+			assertJSON(t, body, tt.wantBody)
+		})
+	}
+
+	f := &fakeStore{machines: registry}
+	get(f, "/machines/maq-01/oee/shifts?date=2026-11-08")
+	if f.date != "2026-11-08" {
+		t.Errorf("queried date %q, want 2026-11-08", f.date)
 	}
 }
 

@@ -135,3 +135,45 @@ func (s dbStore) Readings(ctx context.Context, machineID string, from, to time.T
 	}
 	return readings, rows.Err()
 }
+
+// shiftOEE is the OEE of a machine in one shift, written by etl-oee to oee_turno (ADR 0016).
+type shiftOEE struct {
+	Shift        string    `json:"shift"` // such as "06-14", in the local hours of the plant
+	Start        time.Time `json:"start"`
+	End          time.Time `json:"end"`
+	PlannedS     float64   `json:"planned_s"`
+	RunningS     float64   `json:"running_s"`
+	Good         uint64    `json:"good"`
+	Scrap        uint64    `json:"scrap"`
+	Availability float64   `json:"availability"`
+	Performance  float64   `json:"performance"`
+	Quality      float64   `json:"quality"`
+	OEE          float64   `json:"oee"`
+	ComputedAt   time.Time `json:"computed_at"`
+}
+
+// Shifts returns the shifts of a machine that start on a local date, in
+// order. FINAL keeps only the latest computation of each shift, since the ETL
+// rewrites the shifts it covers every hour.
+func (s dbStore) Shifts(ctx context.Context, machineID, date string) ([]shiftOEE, error) {
+	rows, err := s.ch.Query(ctx, `SELECT shift, shift_start, shift_end, planned_s, running_s, good, scrap,
+		availability, performance, quality, oee, computed_at
+		FROM oee_turno FINAL WHERE machine_id = @machine_id AND shift_date = @date
+		ORDER BY shift_start`,
+		clickhouse.Named("machine_id", machineID), clickhouse.Named("date", date))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var shifts []shiftOEE
+	for rows.Next() {
+		var sh shiftOEE
+		err := rows.Scan(&sh.Shift, &sh.Start, &sh.End, &sh.PlannedS, &sh.RunningS, &sh.Good, &sh.Scrap,
+			&sh.Availability, &sh.Performance, &sh.Quality, &sh.OEE, &sh.ComputedAt)
+		if err != nil {
+			return nil, err
+		}
+		shifts = append(shifts, sh)
+	}
+	return shifts, rows.Err()
+}

@@ -26,6 +26,7 @@ type store interface {
 	Machine(ctx context.Context, id string) (machine, error)
 	LastReadings(ctx context.Context) (map[string]lastReading, error)
 	Readings(ctx context.Context, machineID string, from, to time.Time) ([]oee.Reading, error)
+	Shifts(ctx context.Context, machineID, date string) ([]shiftOEE, error)
 }
 
 type api struct {
@@ -36,6 +37,7 @@ type api struct {
 func (a *api) register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /machines", a.listMachines)
 	mux.HandleFunc("GET /machines/{id}/oee", a.machineOEE)
+	mux.HandleFunc("GET /machines/{id}/oee/shifts", a.machineShifts)
 }
 
 type machineJSON struct {
@@ -114,6 +116,42 @@ func (a *api) machineOEE(w http.ResponseWriter, r *http.Request) {
 		Good: res.Good, Scrap: res.Scrap,
 		Availability: res.Availability, Performance: res.Performance, Quality: res.Quality, OEE: res.OEE,
 	})
+}
+
+// machineShifts returns the OEE of a machine in each shift that starts on the
+// local date given by date, such as 2026-11-08, as computed by etl-oee. Only
+// shifts that have ended are there; the shift in progress comes from
+// GET /machines/{id}/oee (ADR 0016).
+func (a *api) machineShifts(w http.ResponseWriter, r *http.Request) {
+	date := r.URL.Query().Get("date")
+	if _, err := time.Parse(time.DateOnly, date); err != nil {
+		httpjson.Error(w, http.StatusBadRequest, errors.New("date: want a local date, such as 2026-11-08"))
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), queryTimeout)
+	defer cancel()
+	m, err := a.store.Machine(ctx, r.PathValue("id"))
+	if errors.Is(err, errMachineNotFound) {
+		httpjson.Error(w, http.StatusNotFound, err)
+		return
+	}
+	if err != nil {
+		httpjson.InternalError(w, r, err)
+		return
+	}
+	shifts, err := a.store.Shifts(ctx, m.ID, date)
+	if err != nil {
+		httpjson.InternalError(w, r, err)
+		return
+	}
+	if shifts == nil {
+		shifts = []shiftOEE{} // [] instead of null
+	}
+	for i := range shifts {
+		shifts[i].Start, shifts[i].End = shifts[i].Start.UTC(), shifts[i].End.UTC()
+		shifts[i].ComputedAt = shifts[i].ComputedAt.UTC()
+	}
+	httpjson.Write(w, http.StatusOK, map[string]any{"machine_id": m.ID, "date": date, "shifts": shifts})
 }
 
 // parsePeriod reads from and to as RFC 3339, in milliseconds like ts. Without

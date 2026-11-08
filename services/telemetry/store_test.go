@@ -176,3 +176,42 @@ func TestMachineRegistry(t *testing.T) {
 		t.Errorf("unknown machine: got %v, want errMachineNotFound", err)
 	}
 }
+
+func TestShifts(t *testing.T) {
+	conn, machineID := testMachine(t)
+	ctx := context.Background()
+	t.Cleanup(func() {
+		if err := conn.Exec(context.Background(), "DELETE FROM oee_turno WHERE machine_id = ?", machineID); err != nil {
+			t.Errorf("cleanup: %v", err)
+		}
+	})
+	start := time.Date(2026, 11, 8, 9, 0, 0, 0, time.UTC)
+	insert := func(date, shift string, start time.Time, oee float64, computedAt time.Time) {
+		t.Helper()
+		err := conn.Exec(ctx, `INSERT INTO oee_turno (machine_id, shift_date, shift, shift_start, shift_end,
+			planned_s, running_s, good, scrap, availability, performance, quality, oee, computed_at)
+			VALUES (?, ?, ?, ?, ?, 28800, 14400, 3000, 60, 0.5, 0.85, 0.98, ?, ?)`,
+			machineID, date, shift, start, start.Add(8*time.Hour), oee, computedAt)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	// The 14-22 shift first, and the 06-14 shift computed twice: FINAL keeps the latest.
+	insert("2026-11-08", "14-22", start.Add(8*time.Hour), 0.3, start.Add(16*time.Hour))
+	insert("2026-11-08", "06-14", start, 0.1, start.Add(8*time.Hour))
+	insert("2026-11-08", "06-14", start, 0.2, start.Add(9*time.Hour))
+	insert("2026-11-09", "06-14", start.Add(24*time.Hour), 0.9, start.Add(32*time.Hour))
+
+	got, err := dbStore{ch: conn}.Shifts(ctx, machineID, "2026-11-08")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var summary []string
+	for _, sh := range got {
+		summary = append(summary, fmt.Sprintf("%s %s %v %v", sh.Shift, sh.Start.UTC().Format(time.RFC3339), sh.OEE, sh.Good))
+	}
+	want := "[06-14 2026-11-08T09:00:00Z 0.2 3000 14-22 2026-11-08T17:00:00Z 0.3 3000]"
+	if fmt.Sprint(summary) != want {
+		t.Errorf("got %v, want %s", summary, want)
+	}
+}
