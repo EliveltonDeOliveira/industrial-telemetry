@@ -216,6 +216,22 @@ services:
       - "127.0.0.1:8083:8083"
     restart: unless-stopped
 
+  etl-oee:
+    build:
+      context: ../analytics/etl-oee
+    depends_on:
+      clickhouse-migrate:
+        condition: service_completed_successfully
+      postgres-migrate:
+        condition: service_completed_successfully
+    environment:
+      # The HTTP interface of ClickHouse, which clickhouse-connect uses.
+      CLICKHOUSE_DSN: http://${CLICKHOUSE_USER:-industrial}:${CLICKHOUSE_PASSWORD:-industrial}@clickhouse:8123/${CLICKHOUSE_DB:-industrial}
+      POSTGRES_DSN: postgres://${POSTGRES_USER:-industrial}:${POSTGRES_PASSWORD:-industrial}@postgres:5432/${POSTGRES_DB:-industrial}?sslmode=disable
+      ETL_TIMEZONE: ${ETL_TIMEZONE:-America/Sao_Paulo}
+      ETL_SHIFTS: ${ETL_SHIFTS:-06-14,14-22,22-06}
+    restart: unless-stopped
+
   grafana:
     image: grafana/grafana:13.3.0
     ports:

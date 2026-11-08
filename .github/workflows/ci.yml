@@ -59,7 +59,7 @@ jobs:
     strategy:
       matrix:
         # Each Python service in analytics/, with its own requirements.txt.
-        service: [anomaly]
+        service: [anomaly, etl-oee]
     defaults:
       run:
         working-directory: analytics/${{ matrix.service }}
