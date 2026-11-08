@@ -169,6 +169,22 @@ services:
       - "127.0.0.1:8080:8080"
     restart: unless-stopped
 
+  telemetry:
+    build:
+      context: ..
+      args:
+        SERVICE: telemetry
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      clickhouse-migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:8081:8081"
+    environment:
+      CLICKHOUSE_DSN: clickhouse://${CLICKHOUSE_USER:-industrial}:${CLICKHOUSE_PASSWORD:-industrial}@clickhouse:9000/${CLICKHOUSE_DB:-industrial}
+    restart: unless-stopped
+
   grafana:
     image: grafana/grafana:13.3.0
     ports:

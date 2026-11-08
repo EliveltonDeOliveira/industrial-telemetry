@@ -12,3 +12,6 @@ scrape_configs:
   - job_name: bridge
     static_configs:
       - targets: ["bridge:8080"]
+  - job_name: telemetry
+    static_configs:
+      - targets: ["telemetry:8081"]
