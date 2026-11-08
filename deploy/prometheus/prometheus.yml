@@ -9,6 +9,9 @@ scrape_configs:
   - job_name: simulator
     static_configs:
       - targets: ["simulator:8084"]
+  - job_name: simulator-carga
+    static_configs:
+      - targets: ["simulator-carga:8084"]
   - job_name: bridge
     static_configs:
       - targets: ["bridge:8080"]

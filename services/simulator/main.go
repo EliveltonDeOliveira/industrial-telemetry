@@ -5,7 +5,9 @@
 //
 //	MQTT_URL      broker address (tcp://mosquitto:1883)
 //	HTTP_ADDR     address of the HTTP server (:8084)
-//	SIM_MACHINES  number of machines, named maq-01, maq-02... (3)
+//	SIM_MACHINES  number of machines, named <prefix>-01, <prefix>-02... (3). With 0,
+//	              it only serves HTTP, like simulator-carga outside the load test.
+//	SIM_PREFIX    prefix of the machine IDs, such as carga in the load test (maq)
 //	SIM_INTERVAL  time between readings of each machine (1s)
 package main
 
@@ -19,6 +21,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"regexp"
 	"strconv"
 	"sync"
 	"syscall"
@@ -48,8 +51,12 @@ type config struct {
 	mqttURL  string
 	httpAddr string
 	machines int
+	prefix   string
 	interval time.Duration
 }
+
+// prefixPattern keeps every machine ID within the contract pattern ^[a-z0-9-]{1,64}$.
+var prefixPattern = regexp.MustCompile(`^[a-z0-9-]{1,32}$`)
 
 func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
@@ -85,7 +92,7 @@ func run() error {
 	machines := make(map[string]*machine, cfg.machines)
 	var wg sync.WaitGroup
 	for i := range cfg.machines {
-		id := fmt.Sprintf("maq-%02d", i+1)
+		id := fmt.Sprintf("%s-%02d", cfg.prefix, i+1)
 		m := newMachine(id, profiles[i%len(profiles)], rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())), start)
 		machines[id] = m
 		wg.Go(func() { simulate(ctx, m, cfg.interval, pub.publish) })
@@ -110,7 +117,8 @@ func run() error {
 		srv.Shutdown(shutdownCtx)
 	}()
 
-	slog.Info("simulator started", "machines", cfg.machines, "interval", cfg.interval.String(), "http_addr", cfg.httpAddr)
+	slog.Info("simulator started", "machines", cfg.machines, "prefix", cfg.prefix, "interval", cfg.interval.String(),
+		"http_addr", cfg.httpAddr)
 	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
@@ -122,10 +130,14 @@ func loadConfig() (config, error) {
 	cfg := config{
 		mqttURL:  getenv("MQTT_URL", "tcp://mosquitto:1883"),
 		httpAddr: getenv("HTTP_ADDR", ":8084"),
+		prefix:   getenv("SIM_PREFIX", "maq"),
 	}
 	var err error
-	if cfg.machines, err = strconv.Atoi(getenv("SIM_MACHINES", "3")); err != nil || cfg.machines < 1 {
-		return config{}, errors.New("SIM_MACHINES: must be a positive integer")
+	if cfg.machines, err = strconv.Atoi(getenv("SIM_MACHINES", "3")); err != nil || cfg.machines < 0 {
+		return config{}, errors.New("SIM_MACHINES: must be a non-negative integer")
+	}
+	if !prefixPattern.MatchString(cfg.prefix) {
+		return config{}, errors.New("SIM_PREFIX: must be 1 to 32 lowercase letters, digits or hyphens")
 	}
 	if cfg.interval, err = time.ParseDuration(getenv("SIM_INTERVAL", "1s")); err != nil || cfg.interval <= 0 {
 		return config{}, errors.New("SIM_INTERVAL: must be a positive duration, such as 1s or 500ms")

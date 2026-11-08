@@ -157,6 +157,22 @@ services:
       SIM_INTERVAL: ${SIM_INTERVAL:-1s}
     restart: unless-stopped
 
+  # Machines of the load test, carga-01, carga-02..., apart from maq-01 to maq-04
+  # (ADR 0019). Idle with 0 machines until the test sets CARGA_MACHINES.
+  simulator-carga:
+    build:
+      context: ..
+      args:
+        SERVICE: simulator
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    environment:
+      SIM_MACHINES: ${CARGA_MACHINES:-0}
+      SIM_PREFIX: carga
+      SIM_INTERVAL: ${SIM_INTERVAL:-1s}
+    restart: unless-stopped
+
   bridge:
     build:
       context: ..
