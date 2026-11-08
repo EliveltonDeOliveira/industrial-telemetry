@@ -1,13 +1,13 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/EliveltonDeOliveira/industrial-telemetry/internal/contract"
+	"github.com/EliveltonDeOliveira/industrial-telemetry/internal/httpjson"
 )
 
 const maxFaultDurationS = 3600
@@ -32,40 +32,26 @@ type faultResponse struct {
 func faultsHandler(machines map[string]*machine, now func() time.Time) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req faultRequest
-		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10))
-		// Unlike the message contract, the API rejects unknown fields, so a typo
-		// such as "duration" fails instead of being ignored.
-		dec.DisallowUnknownFields()
-		if err := dec.Decode(&req); err != nil {
-			writeError(w, http.StatusBadRequest, fmt.Errorf("invalid JSON: %w", err))
+		if err := httpjson.Decode(w, r, 1<<10, &req); err != nil {
+			httpjson.Error(w, http.StatusBadRequest, err)
 			return
 		}
 		// Checked before converting, so a huge value cannot overflow into a valid duration.
 		if req.DurationS < 1 || req.DurationS > maxFaultDurationS {
-			writeError(w, http.StatusBadRequest, fmt.Errorf("duration_s: must be between 1 and %d", maxFaultDurationS))
+			httpjson.Error(w, http.StatusBadRequest, fmt.Errorf("duration_s: must be between 1 and %d", maxFaultDurationS))
 			return
 		}
 		m, ok := machines[req.MachineID]
 		if !ok {
-			writeError(w, http.StatusNotFound, fmt.Errorf("machine_id: unknown machine %q", req.MachineID))
+			httpjson.Error(w, http.StatusNotFound, fmt.Errorf("machine_id: unknown machine %q", req.MachineID))
 			return
 		}
 		until, err := m.inject(req.Type, time.Duration(req.DurationS)*time.Second, now())
 		if err != nil {
-			writeError(w, http.StatusBadRequest, err)
+			httpjson.Error(w, http.StatusBadRequest, err)
 			return
 		}
 		slog.Info("fault injected", "machine_id", m.id, "type", req.Type, "until", until.UTC())
-		writeJSON(w, http.StatusAccepted, faultResponse{MachineID: m.id, Type: req.Type, Until: until.UTC().Truncate(time.Millisecond)})
+		httpjson.Write(w, http.StatusAccepted, faultResponse{MachineID: m.id, Type: req.Type, Until: until.UTC().Truncate(time.Millisecond)})
 	})
-}
-
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
-}
-
-func writeError(w http.ResponseWriter, status int, err error) {
-	writeJSON(w, status, map[string]string{"error": err.Error()})
 }

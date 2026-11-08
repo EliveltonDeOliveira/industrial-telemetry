@@ -2,14 +2,13 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
 
+	"github.com/EliveltonDeOliveira/industrial-telemetry/internal/httpjson"
 	"github.com/EliveltonDeOliveira/industrial-telemetry/internal/oee"
 )
 
@@ -52,12 +51,12 @@ func (a *api) listMachines(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	machines, err := a.store.Machines(ctx)
 	if err != nil {
-		internalError(w, r, err)
+		httpjson.InternalError(w, r, err)
 		return
 	}
 	last, err := a.store.LastReadings(ctx)
 	if err != nil {
-		internalError(w, r, err)
+		httpjson.InternalError(w, r, err)
 		return
 	}
 	resp := make([]machineJSON, 0, len(machines))
@@ -68,7 +67,7 @@ func (a *api) listMachines(w http.ResponseWriter, r *http.Request) {
 		}
 		resp = append(resp, mj)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"machines": resp})
+	httpjson.Write(w, http.StatusOK, map[string]any{"machines": resp})
 }
 
 type oeeJSON struct {
@@ -89,27 +88,27 @@ type oeeJSON struct {
 func (a *api) machineOEE(w http.ResponseWriter, r *http.Request) {
 	from, to, err := parsePeriod(r.URL.Query(), a.now())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		httpjson.Error(w, http.StatusBadRequest, err)
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), queryTimeout)
 	defer cancel()
 	m, err := a.store.Machine(ctx, r.PathValue("id"))
 	if errors.Is(err, errMachineNotFound) {
-		writeError(w, http.StatusNotFound, err)
+		httpjson.Error(w, http.StatusNotFound, err)
 		return
 	}
 	if err != nil {
-		internalError(w, r, err)
+		httpjson.InternalError(w, r, err)
 		return
 	}
 	readings, err := a.store.Readings(ctx, m.ID, from, to)
 	if err != nil {
-		internalError(w, r, err)
+		httpjson.InternalError(w, r, err)
 		return
 	}
 	res := oee.Compute(readings, to.Sub(from), m.IdealCycle)
-	writeJSON(w, http.StatusOK, oeeJSON{
+	httpjson.Write(w, http.StatusOK, oeeJSON{
 		MachineID: m.ID, From: from, To: to,
 		PlannedS: res.Planned.Seconds(), RunningS: res.Running.Seconds(),
 		Good: res.Good, Scrap: res.Scrap,
@@ -146,20 +145,4 @@ func parsePeriod(q url.Values, now time.Time) (from, to time.Time, err error) {
 		return from, to, fmt.Errorf("from: period longer than %d days", maxPeriod/(24*time.Hour))
 	}
 	return from, to, nil
-}
-
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
-}
-
-func writeError(w http.ResponseWriter, status int, err error) {
-	writeJSON(w, status, map[string]string{"error": err.Error()})
-}
-
-// internalError logs the cause and keeps it out of the response.
-func internalError(w http.ResponseWriter, r *http.Request, err error) {
-	slog.Error("request failed", "method", r.Method, "path", r.URL.Path, "error", err)
-	writeError(w, http.StatusInternalServerError, errors.New("internal error"))
 }
