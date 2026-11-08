@@ -195,8 +195,18 @@ services:
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      # Installed before startup, so provisioning finds them (ADR 0005 and 0010).
+      GF_PLUGINS_PREINSTALL_SYNC: grafana-clickhouse-datasource@4.23.4,yesoreyeram-infinity-datasource@4.1.6
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/oee.json
+      # Read by provisioning/datasources/datasources.yml.
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB:-industrial}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-industrial}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-industrial}
     volumes:
       - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
 
 volumes:
   mosquitto-data:

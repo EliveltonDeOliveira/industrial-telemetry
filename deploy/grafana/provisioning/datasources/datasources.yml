@@ -1,0 +1,28 @@
+# Datasources created when Grafana starts. Credentials come from the compose
+# environment, with the development defaults of deploy/.env.example.
+apiVersion: 1
+
+datasources:
+  # Readings: temperature, vibration and state over time (ADR 0005).
+  - name: ClickHouse
+    uid: clickhouse
+    type: grafana-clickhouse-datasource
+    isDefault: true
+    editable: false
+    jsonData:
+      host: clickhouse
+      port: 9000
+      protocol: native
+      username: $CLICKHOUSE_USER
+      defaultDatabase: $CLICKHOUSE_DB
+    secureJsonData:
+      password: $CLICKHOUSE_PASSWORD
+
+  # OEE, computed by the telemetry API with the rules of ADR 0009 (ADR 0010).
+  - name: Telemetry API
+    uid: telemetry-api
+    type: yesoreyeram-infinity-datasource
+    editable: false
+    url: http://telemetry:8081
+    jsonData:
+      auth_method: none

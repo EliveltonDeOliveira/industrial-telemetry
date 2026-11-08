@@ -2,6 +2,7 @@
 
 - Status: aceita
 - Data: 2026-11-07
+- Complementado pelo [ADR 0010](0010-oee-no-grafana-pela-api.md): o OEE vem da API do `telemetry`.
 
 ## Contexto
 

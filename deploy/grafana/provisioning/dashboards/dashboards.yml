@@ -1,0 +1,12 @@
+# Dashboards loaded from deploy/grafana/dashboards. Changes are made in the
+# JSON files, not in the UI, so they stay versioned.
+apiVersion: 1
+
+providers:
+  - name: industrial-telemetry
+    folder: Industrial Telemetry
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/dashboards

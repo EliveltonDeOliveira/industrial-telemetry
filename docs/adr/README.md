@@ -13,3 +13,4 @@ Cada ADR registra uma decisão, o contexto em que foi tomada, as alternativas co
 | [0007](0007-migrations-com-script-proprio.md) | Migrations com script próprio e CLIs oficiais |
 | [0008](0008-headers-da-dlq.md) | Headers da DLQ: motivo, origem e serviço |
 | [0009](0009-regras-do-oee.md) | Regras de cálculo do OEE |
+| [0010](0010-oee-no-grafana-pela-api.md) | OEE no Grafana pela API do telemetry |
