@@ -14,3 +14,7 @@ Cada ADR registra uma decisão, o contexto em que foi tomada, as alternativas co
 | [0008](0008-headers-da-dlq.md) | Headers da DLQ: motivo, origem e serviço |
 | [0009](0009-regras-do-oee.md) | Regras de cálculo do OEE |
 | [0010](0010-oee-no-grafana-pela-api.md) | OEE no Grafana pela API do telemetry |
+| [0011](0011-ci-com-os-bancos-do-compose.md) | CI no GitHub Actions com os bancos do compose |
+| [0012](0012-regras-de-anomalia.md) | Regras de anomalia medidas com dados reais |
+| [0013](0013-alertas-viram-ordens.md) | Alertas viram ordens de manutenção |
+| [0014](0014-api-de-ordens.md) | API de ordens de manutenção |
