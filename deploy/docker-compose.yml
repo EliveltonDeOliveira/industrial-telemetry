@@ -179,10 +179,13 @@ services:
         condition: service_completed_successfully
       clickhouse-migrate:
         condition: service_completed_successfully
+      postgres-migrate:
+        condition: service_completed_successfully
     ports:
       - "127.0.0.1:8081:8081"
     environment:
       CLICKHOUSE_DSN: clickhouse://${CLICKHOUSE_USER:-industrial}:${CLICKHOUSE_PASSWORD:-industrial}@clickhouse:9000/${CLICKHOUSE_DB:-industrial}
+      POSTGRES_DSN: postgres://${POSTGRES_USER:-industrial}:${POSTGRES_PASSWORD:-industrial}@postgres:5432/${POSTGRES_DB:-industrial}?sslmode=disable
     restart: unless-stopped
 
   grafana:

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"os"
@@ -9,14 +10,21 @@ import (
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/EliveltonDeOliveira/industrial-telemetry/internal/contract"
 )
 
-// TestInsertRows needs the ClickHouse of the compose stack, with migrations applied:
+// The tests in this file need the databases of the compose stack, with migrations applied:
 //
-//	CLICKHOUSE_TEST_DSN=clickhouse://industrial:industrial@localhost:9000/industrial go test ./services/telemetry
-func TestInsertRows(t *testing.T) {
+//	CLICKHOUSE_TEST_DSN=clickhouse://industrial:industrial@localhost:9000/industrial \
+//	POSTGRES_TEST_DSN=postgres://industrial:industrial@localhost:5432/industrial?sslmode=disable \
+//	go test ./services/telemetry
+
+// testMachine connects to ClickHouse and returns a machine_id of its own,
+// whose rows are deleted when the test ends.
+func testMachine(t *testing.T) (driver.Conn, string) {
 	dsn := os.Getenv("CLICKHOUSE_TEST_DSN")
 	if dsn == "" {
 		t.Skip("CLICKHOUSE_TEST_DSN not set")
@@ -29,17 +37,20 @@ func TestInsertRows(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := context.Background()
-
 	// Cleanups run in reverse order, so the rows are deleted before the connection closes.
 	t.Cleanup(func() { conn.Close() })
 	machineID := fmt.Sprintf("test-%08x", rand.Uint32())
 	t.Cleanup(func() {
-		if err := conn.Exec(ctx, "DELETE FROM telemetry_raw WHERE machine_id = ?", machineID); err != nil {
+		if err := conn.Exec(context.Background(), "DELETE FROM telemetry_raw WHERE machine_id = ?", machineID); err != nil {
 			t.Errorf("cleanup: %v", err)
 		}
 	})
+	return conn, machineID
+}
 
+func TestInsertRows(t *testing.T) {
+	conn, machineID := testMachine(t)
+	ctx := context.Background()
 	want := contract.Telemetry{
 		SchemaVersion: contract.SchemaVersion,
 		MachineID:     machineID,
@@ -62,7 +73,7 @@ func TestInsertRows(t *testing.T) {
 	var count uint64
 	row := conn.QueryRow(ctx, `SELECT machine_id, boot_id, seq, ts, state, good_total, scrap_total,
 		temperature_c, vibration_rms, count() OVER () FROM telemetry_raw FINAL WHERE machine_id = ?`, machineID)
-	err = row.Scan(&got.MachineID, &got.BootID, &got.Seq, &got.TS, &state, &got.GoodTotal, &got.ScrapTotal,
+	err := row.Scan(&got.MachineID, &got.BootID, &got.Seq, &got.TS, &state, &got.GoodTotal, &got.ScrapTotal,
 		&got.TemperatureC, &got.VibrationRMS, &count)
 	if err != nil {
 		t.Fatal(err)
@@ -77,5 +88,91 @@ func TestInsertRows(t *testing.T) {
 	got.TS = want.TS
 	if got != want {
 		t.Errorf("got %+v, want %+v", got, want)
+	}
+}
+
+func TestReadingQueries(t *testing.T) {
+	conn, machineID := testMachine(t)
+	ctx := context.Background()
+	s := dbStore{ch: conn}
+
+	// Five readings 400 ms apart, so a period bound rounded to the second
+	// would take or leave the wrong ones. The last one is stopped and hotter.
+	start := time.Date(2026, 11, 7, 14, 0, 0, 0, time.UTC)
+	ts := func(i int) time.Time { return start.Add(time.Duration(i) * 400 * time.Millisecond) }
+	reading := func(i int) contract.Telemetry {
+		r := contract.Telemetry{SchemaVersion: contract.SchemaVersion, MachineID: machineID, BootID: 7, Seq: uint64(i),
+			TS: ts(i), State: contract.StateRunning, GoodTotal: uint64(i), TemperatureC: 40, VibrationRMS: 0.5}
+		if i == 4 {
+			r.State, r.TemperatureC, r.VibrationRMS = contract.StateStopped, 50.5, 0.02
+		}
+		return r
+	}
+	// Two inserts make two parts, so rows come back unsorted without ORDER BY.
+	for _, batch := range [][]int{{2, 3}, {4, 0, 1}} {
+		var rows []contract.Telemetry
+		for _, i := range batch {
+			rows = append(rows, reading(i))
+		}
+		if err := insertRows(ctx, conn, rows); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	t.Run("readings in [from, to), sorted by ts", func(t *testing.T) {
+		got, err := s.Readings(ctx, machineID, ts(1), ts(3))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 2 || !got[0].TS.Equal(ts(1)) || !got[1].TS.Equal(ts(2)) || got[1].GoodTotal != 2 {
+			t.Errorf("got %+v, want the readings at %v and %v", got, ts(1), ts(2))
+		}
+	})
+	t.Run("latest reading", func(t *testing.T) {
+		last, err := s.LastReadings(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, ok := last[machineID]
+		want := lastReading{TS: ts(4), State: contract.StateStopped, TemperatureC: 50.5, VibrationRMS: 0.02}
+		if !ok || !got.TS.Equal(want.TS) || got.State != want.State ||
+			got.TemperatureC != want.TemperatureC || got.VibrationRMS != want.VibrationRMS {
+			t.Errorf("got %+v (found %v), want %+v", got, ok, want)
+		}
+	})
+}
+
+func TestMachineRegistry(t *testing.T) {
+	dsn := os.Getenv("POSTGRES_TEST_DSN")
+	if dsn == "" {
+		t.Skip("POSTGRES_TEST_DSN not set")
+	}
+	ctx := context.Background()
+	pg, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pg.Close()
+	s := dbStore{pg: pg}
+
+	// The development seed, 0002_seed_machines.sql.
+	machines, err := s.Machines(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, m := range machines {
+		got = append(got, fmt.Sprintf("%s %s", m.ID, m.IdealCycle))
+	}
+	if want := "[maq-01 4s maq-02 6s maq-03 2.5s maq-04 5s]"; fmt.Sprint(got) != want {
+		t.Errorf("got %v, want %s", got, want)
+	}
+
+	m, err := s.Machine(ctx, "maq-03")
+	if err != nil || m.Name != "Torno CNC" || m.IdealCycle != 2500*time.Millisecond {
+		t.Errorf("got %+v, %v; want maq-03, Torno CNC, 2.5s", m, err)
+	}
+	if _, err := s.Machine(ctx, "maq-99"); !errors.Is(err, errMachineNotFound) {
+		t.Errorf("unknown machine: got %v, want errMachineNotFound", err)
 	}
 }

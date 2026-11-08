@@ -2,10 +2,16 @@ package main
 
 import (
 	"context"
+	"errors"
+	"time"
 
+	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/EliveltonDeOliveira/industrial-telemetry/internal/contract"
+	"github.com/EliveltonDeOliveira/industrial-telemetry/internal/oee"
 )
 
 // insertRows writes readings to telemetry_raw in a single INSERT.
@@ -24,4 +30,108 @@ func insertRows(ctx context.Context, conn driver.Conn, rows []contract.Telemetry
 		}
 	}
 	return batch.Send()
+}
+
+var errMachineNotFound = errors.New("machine not found")
+
+// machine is an entry of the machine registry in PostgreSQL.
+type machine struct {
+	ID         string
+	Name       string
+	IdealCycle time.Duration // time one piece should take
+}
+
+// lastReading is the latest known state of a machine.
+type lastReading struct {
+	TS           time.Time      `json:"ts"`
+	State        contract.State `json:"state"`
+	TemperatureC float64        `json:"temperature_c"`
+	VibrationRMS float64        `json:"vibration_rms"`
+}
+
+// dbStore reads the machine registry from PostgreSQL and readings from ClickHouse.
+type dbStore struct {
+	pg *pgxpool.Pool
+	ch driver.Conn
+}
+
+func (s dbStore) Machines(ctx context.Context) ([]machine, error) {
+	rows, err := s.pg.Query(ctx, "SELECT machine_id, name, ideal_cycle_s FROM machines ORDER BY machine_id")
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, scanMachine)
+}
+
+// Machine returns errMachineNotFound for a machine that is not registered.
+func (s dbStore) Machine(ctx context.Context, id string) (machine, error) {
+	rows, err := s.pg.Query(ctx, "SELECT machine_id, name, ideal_cycle_s FROM machines WHERE machine_id = $1", id)
+	if err != nil {
+		return machine{}, err
+	}
+	m, err := pgx.CollectExactlyOneRow(rows, scanMachine)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return machine{}, errMachineNotFound
+	}
+	return m, err
+}
+
+func scanMachine(row pgx.CollectableRow) (machine, error) {
+	var m machine
+	var idealCycleS float64
+	err := row.Scan(&m.ID, &m.Name, &idealCycleS)
+	m.IdealCycle = time.Duration(idealCycleS * float64(time.Second))
+	return m, err
+}
+
+// LastReadings returns the latest reading of every machine that has one.
+// It scans all of telemetry_raw, which is fast at this project's volume; a
+// table kept up to date by a materialized view would avoid that if it grows.
+func (s dbStore) LastReadings(ctx context.Context) (map[string]lastReading, error) {
+	rows, err := s.ch.Query(ctx, `SELECT machine_id, max(ts), argMax(state, ts),
+		argMax(temperature_c, ts), argMax(vibration_rms, ts)
+		FROM telemetry_raw GROUP BY machine_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	last := map[string]lastReading{}
+	for rows.Next() {
+		var id, state string
+		var r lastReading
+		if err := rows.Scan(&id, &r.TS, &state, &r.TemperatureC, &r.VibrationRMS); err != nil {
+			return nil, err
+		}
+		r.State = contract.State(state)
+		last[id] = r
+	}
+	return last, rows.Err()
+}
+
+// Readings returns the readings of a machine in [from, to), sorted as the OEE
+// calculation needs. Repeated rows not merged yet do not change the result,
+// so the query skips FINAL (ADR 0009).
+func (s dbStore) Readings(ctx context.Context, machineID string, from, to time.Time) ([]oee.Reading, error) {
+	// Positional parameters round times to the second, and ts has milliseconds.
+	rows, err := s.ch.Query(ctx, `SELECT boot_id, ts, state, good_total, scrap_total
+		FROM telemetry_raw WHERE machine_id = @machine_id AND ts >= @from AND ts < @to
+		ORDER BY ts, boot_id, seq`,
+		clickhouse.Named("machine_id", machineID),
+		clickhouse.DateNamed("from", from, clickhouse.MilliSeconds),
+		clickhouse.DateNamed("to", to, clickhouse.MilliSeconds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var readings []oee.Reading
+	for rows.Next() {
+		var r oee.Reading
+		var state string
+		if err := rows.Scan(&r.BootID, &r.TS, &state, &r.GoodTotal, &r.ScrapTotal); err != nil {
+			return nil, err
+		}
+		r.State = contract.State(state)
+		readings = append(readings, r)
+	}
+	return readings, rows.Err()
 }
