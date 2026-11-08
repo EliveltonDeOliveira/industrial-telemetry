@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# The jobs only check out and test the code.
+permissions:
+  contents: read
+
+# A new push to the same branch cancels the run still in progress.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      # Integration tests skip themselves without the *_TEST_DSN variables.
+      - run: go test -race ./...
+
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      # Same images, versions and migrations as the development stack.
+      # Each `run` starts the database, waits for its healthcheck and fails if a migration fails.
+      - name: Start databases and apply migrations
+        working-directory: deploy
+        run: |
+          docker compose run --rm postgres-migrate
+          docker compose run --rm clickhouse-migrate
+      # -count=1 disables the test cache, which does not see changes in the databases or migrations.
+      - name: Test with databases
+        env:
+          CLICKHOUSE_TEST_DSN: clickhouse://industrial:industrial@localhost:9000/industrial
+          POSTGRES_TEST_DSN: postgres://industrial:industrial@localhost:5432/industrial?sslmode=disable
+        run: go test -race -count=1 ./...
+      - name: Database logs
+        if: failure()
+        working-directory: deploy
+        run: docker compose logs postgres clickhouse
