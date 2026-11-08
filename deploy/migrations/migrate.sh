@@ -12,7 +12,11 @@ postgres)
 	export PGOPTIONS="-c client_min_messages=warning"
 	query() { psql -v ON_ERROR_STOP=1 -qtA -c "$1"; }
 	# The file and its record run in one transaction, so a failed migration leaves no trace.
-	apply() { psql -v ON_ERROR_STOP=1 -q --single-transaction -f "$1" -c "INSERT INTO schema_migrations (version) VALUES ('$2')"; }
+	# Secrets reach the migrations as psql variables, such as :'grafana_password'.
+	apply() {
+		psql -v ON_ERROR_STOP=1 -v grafana_password="$POSTGRES_GRAFANA_PASSWORD" -q --single-transaction \
+			-f "$1" -c "INSERT INTO schema_migrations (version) VALUES ('$2')"
+	}
 	query "CREATE TABLE IF NOT EXISTS schema_migrations (version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())"
 	;;
 clickhouse)

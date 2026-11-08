@@ -18,3 +18,4 @@ Cada ADR registra uma decisão, o contexto em que foi tomada, as alternativas co
 | [0012](0012-regras-de-anomalia.md) | Regras de anomalia medidas com dados reais |
 | [0013](0013-alertas-viram-ordens.md) | Alertas viram ordens de manutenção |
 | [0014](0014-api-de-ordens.md) | API de ordens de manutenção |
+| [0015](0015-paineis-de-manutencao.md) | Painéis de manutenção no Grafana com usuário só de leitura |

@@ -25,6 +25,36 @@
   },
   "schemaVersion": 41,
   "version": 1,
+  "links": [
+    {
+      "title": "Manutenção",
+      "type": "link",
+      "url": "/d/maintenance",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "name": "Alertas",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "postgres"
+        },
+        "enable": true,
+        "iconColor": "red",
+        "target": {
+          "refId": "Anno",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT ts AS time, machine_id || ' ' || alert_type::text || ': ' || value || ' (limite ' || threshold || ')' AS text,\n  machine_id || ',' || alert_type::text AS tags\nFROM alerts\nWHERE $__timeFilter(ts) AND machine_id IN (${machine:singlequote})\nORDER BY ts"
+        }
+      }
+    ]
+  },
   "templating": {
     "list": [
       {
@@ -74,9 +104,6 @@
         }
       }
     ]
-  },
-  "annotations": {
-    "list": []
   },
   "panels": [
     {

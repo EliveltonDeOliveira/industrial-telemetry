@@ -128,6 +128,8 @@ services:
       PGDATABASE: ${POSTGRES_DB:-industrial}
       PGUSER: ${POSTGRES_USER:-industrial}
       PGPASSWORD: ${POSTGRES_PASSWORD:-industrial}
+      # Password of the read only role grafana, created by 0003_grafana_reader.sql.
+      POSTGRES_GRAFANA_PASSWORD: ${POSTGRES_GRAFANA_PASSWORD:-grafana}
     volumes:
       - ./migrations:/migrations:ro
     entrypoint: ["sh", "/migrations/migrate.sh", "postgres"]
@@ -228,6 +230,8 @@ services:
       CLICKHOUSE_DB: ${CLICKHOUSE_DB:-industrial}
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-industrial}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-industrial}
+      POSTGRES_DB: ${POSTGRES_DB:-industrial}
+      POSTGRES_GRAFANA_PASSWORD: ${POSTGRES_GRAFANA_PASSWORD:-grafana}
     volumes:
       - grafana-data:/var/lib/grafana
       - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro

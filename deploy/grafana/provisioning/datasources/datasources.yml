@@ -26,3 +26,17 @@ datasources:
     url: http://telemetry:8081
     jsonData:
       auth_method: none
+
+  # Alerts and work orders, read with the read only role grafana (ADR 0005 and 0015).
+  - name: PostgreSQL
+    uid: postgres
+    type: grafana-postgresql-datasource
+    editable: false
+    url: postgres:5432
+    user: grafana
+    jsonData:
+      database: $POSTGRES_DB
+      sslmode: disable
+      postgresVersion: 1500
+    secureJsonData:
+      password: $POSTGRES_GRAFANA_PASSWORD
