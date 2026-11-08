@@ -51,6 +51,14 @@ var (
 	})
 )
 
+// The series of each topic exist at 0 from the start. A series that first
+// appears at 1 hides that increment from rate() and increase() (ADR 0018).
+func init() {
+	for _, topic := range []string{contract.TopicTelemetry, contract.TopicDLQ} {
+		produced.WithLabelValues(topic)
+	}
+}
+
 type config struct {
 	mqttURL      string
 	mqttClientID string

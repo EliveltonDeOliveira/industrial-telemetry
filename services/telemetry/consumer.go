@@ -50,6 +50,14 @@ var (
 	})
 )
 
+// The series of each operation exist at 0 from the start. A series that first
+// appears at 1 hides that failure from rate() and increase() (ADR 0018).
+func init() {
+	for _, op := range []string{"clickhouse_insert", "dlq_produce", "commit"} {
+		failures.WithLabelValues(op)
+	}
+}
+
 type consumer struct {
 	kafka *kgo.Client
 	ch    driver.Conn

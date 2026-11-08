@@ -10,7 +10,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from confluent_kafka import Consumer, KafkaException, Producer
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
-from .contract import TOPIC_ALERTS, TOPIC_DLQ, TOPIC_TELEMETRY, ContractError, parse_telemetry
+from .contract import ALERT_TYPES, TOPIC_ALERTS, TOPIC_DLQ, TOPIC_TELEMETRY, ContractError, parse_telemetry
 from .detector import Detector
 
 SERVICE = "anomaly"
@@ -29,6 +29,12 @@ failures = Counter("anomaly_failures", "Failed attempts that are retried, by ope
 # It includes any difference between the clock of the device, which sets ts, and this one (ADR 0017).
 alert_delay = Histogram("anomaly_alert_delay_seconds", "Time from the ts of the reading that fired an alert to publishing it.",
                         buckets=[0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 300])
+# Every labeled series exists at 0 from the start. A series that first appears at 1
+# hides that increment from rate() and increase() (ADR 0018).
+for alert_type in ALERT_TYPES:
+    alerts_published.labels(alert_type)
+for operation in ("produce", "commit"):
+    failures.labels(operation)
 
 
 @dataclass(frozen=True)

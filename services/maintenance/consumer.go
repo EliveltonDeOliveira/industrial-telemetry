@@ -54,6 +54,14 @@ var (
 	})
 )
 
+// The series of each operation exist at 0 from the start. A series that first
+// appears at 1 hides that failure from rate() and increase() (ADR 0018).
+func init() {
+	for _, op := range []string{"store_alert", "dlq_produce", "commit"} {
+		failures.WithLabelValues(op)
+	}
+}
+
 // alertStore is what the consumer needs from pgStore, so tests can replace it.
 type alertStore interface {
 	StoreAlert(ctx context.Context, a contract.Alert) (stored, error)
