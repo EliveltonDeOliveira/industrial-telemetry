@@ -1,0 +1,175 @@
+{
+  "description": "Cases of the OEE rules of docs/adr/0009-regras-do-oee.md, run by the Go package internal/oee and by the pytest of analytics/etl-oee. Each reading is t seconds after the start of a period that lasts planned_s seconds. Factors are compared with a tolerance of 1e-9.",
+  "cases": [
+    {
+      "name": "running the whole period at the ideal cycle",
+      "planned_s": 100,
+      "ideal_cycle_s": 4,
+      "readings": [
+        {"t": 0, "boot_id": 7, "state": "running", "good_total": 0, "scrap_total": 0},
+        {"t": 40, "boot_id": 7, "state": "running", "good_total": 10, "scrap_total": 0},
+        {"t": 100, "boot_id": 7, "state": "running", "good_total": 25, "scrap_total": 0}
+      ],
+      "want": {"running_s": 100, "good": 25, "scrap": 0, "availability": 1, "performance": 1, "quality": 1, "oee": 1}
+    },
+    {
+      "name": "a reading's state holds until the next reading",
+      "planned_s": 100,
+      "ideal_cycle_s": 4,
+      "readings": [
+        {"t": 0, "boot_id": 7, "state": "running", "good_total": 0, "scrap_total": 0},
+        {"t": 60, "boot_id": 7, "state": "stopped", "good_total": 15, "scrap_total": 0},
+        {"t": 100, "boot_id": 7, "state": "stopped", "good_total": 15, "scrap_total": 0}
+      ],
+      "want": {"running_s": 60, "good": 15, "scrap": 0, "availability": 0.6, "performance": 1, "quality": 1, "oee": 0.6}
+    },
+    {
+      "name": "starts again after a stop",
+      "planned_s": 100,
+      "ideal_cycle_s": 4,
+      "readings": [
+        {"t": 0, "boot_id": 7, "state": "stopped", "good_total": 0, "scrap_total": 0},
+        {"t": 20, "boot_id": 7, "state": "running", "good_total": 0, "scrap_total": 0},
+        {"t": 100, "boot_id": 7, "state": "running", "good_total": 20, "scrap_total": 0}
+      ],
+      "want": {"running_s": 80, "good": 20, "scrap": 0, "availability": 0.8, "performance": 1, "quality": 1, "oee": 0.8}
+    },
+    {
+      "name": "slower than the ideal cycle",
+      "planned_s": 100,
+      "ideal_cycle_s": 4,
+      "readings": [
+        {"t": 0, "boot_id": 7, "state": "running", "good_total": 0, "scrap_total": 0},
+        {"t": 100, "boot_id": 7, "state": "running", "good_total": 20, "scrap_total": 0}
+      ],
+      "want": {"running_s": 100, "good": 20, "scrap": 0, "availability": 1, "performance": 0.8, "quality": 1, "oee": 0.8}
+    },
+    {
+      "name": "faster than the ideal cycle is limited to 1",
+      "planned_s": 100,
+      "ideal_cycle_s": 4,
+      "readings": [
+        {"t": 0, "boot_id": 7, "state": "running", "good_total": 0, "scrap_total": 0},
+        {"t": 100, "boot_id": 7, "state": "running", "good_total": 30, "scrap_total": 0}
+      ],
+      "want": {"running_s": 100, "good": 30, "scrap": 0, "availability": 1, "performance": 1, "quality": 1, "oee": 1}
+    },
+    {
+      "name": "scrap lowers quality",
+      "planned_s": 100,
+      "ideal_cycle_s": 4,
+      "readings": [
+        {"t": 0, "boot_id": 7, "state": "running", "good_total": 0, "scrap_total": 0},
+        {"t": 100, "boot_id": 7, "state": "running", "good_total": 20, "scrap_total": 5}
+      ],
+      "want": {"running_s": 100, "good": 20, "scrap": 5, "availability": 1, "performance": 1, "quality": 0.8, "oee": 0.8}
+    },
+    {
+      "name": "reboot restarts the counters under a new boot_id",
+      "note": "Boot 7 makes 9 good and 1 scrap. Boot 8 starts with 1 good already counted and makes 8 good and 1 scrap more. The 20 s between boots are not running time.",
+      "planned_s": 100,
+      "ideal_cycle_s": 4,
+      "readings": [
+        {"t": 0, "boot_id": 7, "state": "running", "good_total": 100, "scrap_total": 2},
+        {"t": 40, "boot_id": 7, "state": "running", "good_total": 109, "scrap_total": 3},
+        {"t": 60, "boot_id": 8, "state": "running", "good_total": 1, "scrap_total": 0},
+        {"t": 100, "boot_id": 8, "state": "running", "good_total": 9, "scrap_total": 1}
+      ],
+      "want": {"running_s": 80, "good": 18, "scrap": 2, "availability": 0.8, "performance": 1, "quality": 0.9, "oee": 0.72}
+    },
+    {
+      "name": "counters of a new boot_id are not compared with the old one",
+      "note": "Boot 8 already counts 5 pieces in its first reading, more than boot 7 had. All 5 are new, not 5 - 2.",
+      "planned_s": 100,
+      "ideal_cycle_s": 4,
+      "readings": [
+        {"t": 0, "boot_id": 7, "state": "running", "good_total": 0, "scrap_total": 0},
+        {"t": 40, "boot_id": 7, "state": "running", "good_total": 2, "scrap_total": 0},
+        {"t": 60, "boot_id": 8, "state": "running", "good_total": 5, "scrap_total": 0},
+        {"t": 100, "boot_id": 8, "state": "running", "good_total": 13, "scrap_total": 0}
+      ],
+      "want": {"running_s": 80, "good": 15, "scrap": 0, "availability": 0.8, "performance": 0.75, "quality": 1, "oee": 0.6}
+    },
+    {
+      "name": "counter going down in the same boot_id restarts from zero",
+      "planned_s": 100,
+      "ideal_cycle_s": 4,
+      "readings": [
+        {"t": 0, "boot_id": 7, "state": "running", "good_total": 50, "scrap_total": 0},
+        {"t": 50, "boot_id": 7, "state": "running", "good_total": 3, "scrap_total": 0},
+        {"t": 100, "boot_id": 7, "state": "running", "good_total": 15, "scrap_total": 0}
+      ],
+      "want": {"running_s": 100, "good": 15, "scrap": 0, "availability": 1, "performance": 0.6, "quality": 1, "oee": 0.6}
+    },
+    {
+      "name": "lost readings in the same boot_id",
+      "note": "Counters are cumulative, so pieces made between lost readings show up in the next one.",
+      "planned_s": 100,
+      "ideal_cycle_s": 4,
+      "readings": [
+        {"t": 0, "boot_id": 7, "state": "running", "good_total": 0, "scrap_total": 0},
+        {"t": 10, "boot_id": 7, "state": "running", "good_total": 2, "scrap_total": 0},
+        {"t": 100, "boot_id": 7, "state": "running", "good_total": 25, "scrap_total": 0}
+      ],
+      "want": {"running_s": 100, "good": 25, "scrap": 0, "availability": 1, "performance": 1, "quality": 1, "oee": 1}
+    },
+    {
+      "name": "repeated reading changes nothing",
+      "planned_s": 100,
+      "ideal_cycle_s": 4,
+      "readings": [
+        {"t": 0, "boot_id": 7, "state": "running", "good_total": 0, "scrap_total": 0},
+        {"t": 40, "boot_id": 7, "state": "running", "good_total": 10, "scrap_total": 0},
+        {"t": 40, "boot_id": 7, "state": "running", "good_total": 10, "scrap_total": 0},
+        {"t": 100, "boot_id": 7, "state": "running", "good_total": 25, "scrap_total": 0}
+      ],
+      "want": {"running_s": 100, "good": 25, "scrap": 0, "availability": 1, "performance": 1, "quality": 1, "oee": 1}
+    },
+    {
+      "name": "no readings in part of the period is not running",
+      "planned_s": 100,
+      "ideal_cycle_s": 4,
+      "readings": [
+        {"t": 50, "boot_id": 7, "state": "running", "good_total": 0, "scrap_total": 0},
+        {"t": 100, "boot_id": 7, "state": "running", "good_total": 10, "scrap_total": 0}
+      ],
+      "want": {"running_s": 50, "good": 10, "scrap": 0, "availability": 0.5, "performance": 0.8, "quality": 1, "oee": 0.4}
+    },
+    {
+      "name": "running without making pieces",
+      "planned_s": 100,
+      "ideal_cycle_s": 4,
+      "readings": [
+        {"t": 0, "boot_id": 7, "state": "running", "good_total": 4, "scrap_total": 0},
+        {"t": 100, "boot_id": 7, "state": "running", "good_total": 4, "scrap_total": 0}
+      ],
+      "want": {"running_s": 100, "good": 0, "scrap": 0, "availability": 1, "performance": 0, "quality": 0, "oee": 0}
+    },
+    {
+      "name": "stopped the whole period",
+      "planned_s": 100,
+      "ideal_cycle_s": 4,
+      "readings": [
+        {"t": 0, "boot_id": 7, "state": "stopped", "good_total": 4, "scrap_total": 1},
+        {"t": 100, "boot_id": 7, "state": "stopped", "good_total": 4, "scrap_total": 1}
+      ],
+      "want": {"running_s": 0, "good": 0, "scrap": 0, "availability": 0, "performance": 0, "quality": 0, "oee": 0}
+    },
+    {
+      "name": "a single reading",
+      "planned_s": 100,
+      "ideal_cycle_s": 4,
+      "readings": [
+        {"t": 0, "boot_id": 7, "state": "running", "good_total": 4, "scrap_total": 1}
+      ],
+      "want": {"running_s": 0, "good": 0, "scrap": 0, "availability": 0, "performance": 0, "quality": 0, "oee": 0}
+    },
+    {
+      "name": "no readings",
+      "planned_s": 100,
+      "ideal_cycle_s": 4,
+      "readings": [],
+      "want": {"running_s": 0, "good": 0, "scrap": 0, "availability": 0, "performance": 0, "quality": 0, "oee": 0}
+    }
+  ]
+}

@@ -1,142 +1,69 @@
 package oee
 
 import (
+	"encoding/json"
 	"math"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/EliveltonDeOliveira/industrial-telemetry/internal/contract"
 )
 
-const (
-	run  = contract.StateRunning
-	stop = contract.StateStopped
-)
+// The cases live in contracts/oee/cases.json, shared with the pytest of
+// analytics/etl-oee, so both implementations follow the same rules (ADR 0009).
+type casesFile struct {
+	Cases []struct {
+		Name        string  `json:"name"`
+		PlannedS    float64 `json:"planned_s"`
+		IdealCycleS float64 `json:"ideal_cycle_s"`
+		Readings    []struct {
+			T          float64        `json:"t"`
+			BootID     uint32         `json:"boot_id"`
+			State      contract.State `json:"state"`
+			GoodTotal  uint64         `json:"good_total"`
+			ScrapTotal uint64         `json:"scrap_total"`
+		} `json:"readings"`
+		Want struct {
+			RunningS     float64 `json:"running_s"`
+			Good         uint64  `json:"good"`
+			Scrap        uint64  `json:"scrap"`
+			Availability float64 `json:"availability"`
+			Performance  float64 `json:"performance"`
+			Quality      float64 `json:"quality"`
+			OEE          float64 `json:"oee"`
+		} `json:"want"`
+	} `json:"cases"`
+}
 
 var start = time.Date(2026, 11, 7, 14, 0, 0, 0, time.UTC)
 
-// at builds a reading taken sec seconds after the start of the period.
-func at(sec int, bootID uint32, state contract.State, good, scrap uint64) Reading {
-	return Reading{BootID: bootID, TS: start.Add(time.Duration(sec) * time.Second), State: state, GoodTotal: good, ScrapTotal: scrap}
-}
+func seconds(s float64) time.Duration { return time.Duration(s * float64(time.Second)) }
 
 func TestCompute(t *testing.T) {
-	tests := []struct {
-		name        string
-		readings    []Reading
-		running     time.Duration
-		good, scrap uint64
-		a, p, q     float64 // availability, performance and quality
-	}{
-		{
-			name:     "running the whole period at the ideal cycle",
-			readings: []Reading{at(0, 7, run, 0, 0), at(40, 7, run, 10, 0), at(100, 7, run, 25, 0)},
-			running:  100 * time.Second, good: 25,
-			a: 1, p: 1, q: 1,
-		},
-		{
-			name:     "a reading's state holds until the next reading",
-			readings: []Reading{at(0, 7, run, 0, 0), at(60, 7, stop, 15, 0), at(100, 7, stop, 15, 0)},
-			running:  60 * time.Second, good: 15,
-			a: 0.6, p: 1, q: 1,
-		},
-		{
-			name:     "starts again after a stop",
-			readings: []Reading{at(0, 7, stop, 0, 0), at(20, 7, run, 0, 0), at(100, 7, run, 20, 0)},
-			running:  80 * time.Second, good: 20,
-			a: 0.8, p: 1, q: 1,
-		},
-		{
-			name:     "slower than the ideal cycle",
-			readings: []Reading{at(0, 7, run, 0, 0), at(100, 7, run, 20, 0)},
-			running:  100 * time.Second, good: 20,
-			a: 1, p: 0.8, q: 1,
-		},
-		{
-			name:     "faster than the ideal cycle is limited to 1",
-			readings: []Reading{at(0, 7, run, 0, 0), at(100, 7, run, 30, 0)},
-			running:  100 * time.Second, good: 30,
-			a: 1, p: 1, q: 1,
-		},
-		{
-			name:     "scrap lowers quality",
-			readings: []Reading{at(0, 7, run, 0, 0), at(100, 7, run, 20, 5)},
-			running:  100 * time.Second, good: 20, scrap: 5,
-			a: 1, p: 1, q: 0.8,
-		},
-		{
-			// Boot 7 makes 9 good and 1 scrap. Boot 8 starts with 1 good already
-			// counted and makes 8 good and 1 scrap more. The 20 s between boots
-			// are not running time.
-			name: "reboot restarts the counters under a new boot_id",
-			readings: []Reading{
-				at(0, 7, run, 100, 2), at(40, 7, run, 109, 3),
-				at(60, 8, run, 1, 0), at(100, 8, run, 9, 1),
-			},
-			running: 80 * time.Second, good: 18, scrap: 2,
-			a: 0.8, p: 1, q: 0.9,
-		},
-		{
-			// Boot 8 already counts 5 pieces in its first reading, more than
-			// boot 7 had. All 5 are new, not 5 - 2.
-			name: "counters of a new boot_id are not compared with the old one",
-			readings: []Reading{
-				at(0, 7, run, 0, 0), at(40, 7, run, 2, 0),
-				at(60, 8, run, 5, 0), at(100, 8, run, 13, 0),
-			},
-			running: 80 * time.Second, good: 15,
-			a: 0.8, p: 0.75, q: 1,
-		},
-		{
-			name:     "counter going down in the same boot_id restarts from zero",
-			readings: []Reading{at(0, 7, run, 50, 0), at(50, 7, run, 3, 0), at(100, 7, run, 15, 0)},
-			running:  100 * time.Second, good: 15,
-			a: 1, p: 0.6, q: 1,
-		},
-		{
-			// Counters are cumulative, so pieces made between lost readings
-			// show up in the next one.
-			name:     "lost readings in the same boot_id",
-			readings: []Reading{at(0, 7, run, 0, 0), at(10, 7, run, 2, 0), at(100, 7, run, 25, 0)},
-			running:  100 * time.Second, good: 25,
-			a: 1, p: 1, q: 1,
-		},
-		{
-			name:     "repeated reading changes nothing",
-			readings: []Reading{at(0, 7, run, 0, 0), at(40, 7, run, 10, 0), at(40, 7, run, 10, 0), at(100, 7, run, 25, 0)},
-			running:  100 * time.Second, good: 25,
-			a: 1, p: 1, q: 1,
-		},
-		{
-			name:     "no readings in part of the period is not running",
-			readings: []Reading{at(50, 7, run, 0, 0), at(100, 7, run, 10, 0)},
-			running:  50 * time.Second, good: 10,
-			a: 0.5, p: 0.8, q: 1,
-		},
-		{
-			name:     "running without making pieces",
-			readings: []Reading{at(0, 7, run, 4, 0), at(100, 7, run, 4, 0)},
-			running:  100 * time.Second, good: 0, scrap: 0,
-			a: 1, p: 0, q: 0,
-		},
-		{
-			name:     "stopped the whole period",
-			readings: []Reading{at(0, 7, stop, 4, 1), at(100, 7, stop, 4, 1)},
-		},
-		{
-			name:     "a single reading",
-			readings: []Reading{at(0, 7, run, 4, 1)},
-		},
-		{
-			name: "no readings",
-		},
+	data, err := os.ReadFile("../../contracts/oee/cases.json")
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := Compute(tt.readings, 100*time.Second, 4*time.Second)
+	var f casesFile
+	if err := json.Unmarshal(data, &f); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.Cases) == 0 {
+		t.Fatal("no cases")
+	}
+	for _, c := range f.Cases {
+		t.Run(c.Name, func(t *testing.T) {
+			var readings []Reading
+			for _, r := range c.Readings {
+				readings = append(readings, Reading{BootID: r.BootID, TS: start.Add(seconds(r.T)), State: r.State,
+					GoodTotal: r.GoodTotal, ScrapTotal: r.ScrapTotal})
+			}
+			got := Compute(readings, seconds(c.PlannedS), seconds(c.IdealCycleS))
+			w := c.Want
 			want := Result{
-				Planned: 100 * time.Second, Running: tt.running, Good: tt.good, Scrap: tt.scrap,
-				Availability: tt.a, Performance: tt.p, Quality: tt.q, OEE: tt.a * tt.p * tt.q,
+				Planned: seconds(c.PlannedS), Running: seconds(w.RunningS), Good: w.Good, Scrap: w.Scrap,
+				Availability: w.Availability, Performance: w.Performance, Quality: w.Quality, OEE: w.OEE,
 			}
 			if !equal(got, want) {
 				t.Errorf("got  %+v\nwant %+v", got, want)
