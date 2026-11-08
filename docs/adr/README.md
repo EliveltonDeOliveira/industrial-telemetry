@@ -21,3 +21,4 @@ Cada ADR registra uma decisão, o contexto em que foi tomada, as alternativas co
 | [0015](0015-paineis-de-manutencao.md) | Painéis de manutenção no Grafana com usuário só de leitura |
 | [0016](0016-etl-de-oee-por-turno.md) | ETL de OEE por turno, com os casos de teste compartilhados entre Go e Python |
 | [0017](0017-metricas-de-latencia-requisicoes-e-lag.md) | Métricas de latência, requisições e lag |
+| [0018](0018-dashboard-da-plataforma.md) | Dashboard da plataforma e séries com label criadas em zero |

@@ -40,3 +40,15 @@ datasources:
       postgresVersion: 1500
     secureJsonData:
       password: $POSTGRES_GRAFANA_PASSWORD
+
+  # Metrics of every service, for the dashboard Plataforma (ADR 0017 and 0018).
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    editable: false
+    url: http://prometheus:9090
+    jsonData:
+      # The scrape_interval of deploy/prometheus/prometheus.yml, so $__rate_interval
+      # always covers at least 4 scrapes.
+      timeInterval: 15s
+      httpMethod: POST

@@ -33,6 +33,14 @@
       "icon": "dashboard",
       "keepTime": true,
       "includeVars": true
+    },
+    {
+      "title": "Plataforma",
+      "type": "link",
+      "url": "/d/platform",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": false
     }
   ],
   "annotations": {
