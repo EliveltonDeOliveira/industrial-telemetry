@@ -31,6 +31,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 
 	"github.com/EliveltonDeOliveira/industrial-telemetry/internal/contract"
+	"github.com/EliveltonDeOliveira/industrial-telemetry/internal/httpmetrics"
 )
 
 const (
@@ -103,7 +104,7 @@ func run() error {
 	mux.Handle("GET /metrics", promhttp.Handler())
 	(&api{store: pgStore{pg: pg}}).register(mux)
 
-	srv := &http.Server{Addr: httpAddr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
+	srv := &http.Server{Addr: httpAddr, Handler: httpmetrics.Handler(mux), ReadHeaderTimeout: 5 * time.Second}
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

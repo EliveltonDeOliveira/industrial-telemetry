@@ -40,6 +40,8 @@ def test_alerts_are_keyed_by_machine():
     [r] = batch.records
     assert (r.topic, r.key, r.alert_type) == (TOPIC_ALERTS, b"maq-01", "temperatura_alta")
     assert parse_alert(r.value).machine_id == "maq-01"
+    # The ts of the reading that fired it, for anomaly_alert_delay_seconds.
+    assert r.ts == parse_alert(r.value).ts
     assert batch.consumed == 3
 
 

@@ -45,6 +45,13 @@ var (
 		Name: "maintenance_failures_total",
 		Help: "Failed attempts, by operation.",
 	}, []string{"operation"})
+	// The ts of an alert is the ts of the reading that fired it, so this is the
+	// delay from the reading to its work order (ADR 0017).
+	alertDelay = promauto.NewHistogram(prometheus.HistogramOpts{
+		Name:    "maintenance_alert_delay_seconds",
+		Help:    "Time from the ts of an alert to storing it in PostgreSQL with its work order.",
+		Buckets: []float64{0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 300},
+	})
 )
 
 // alertStore is what the consumer needs from pgStore, so tests can replace it.
@@ -144,6 +151,7 @@ func (b *batch) count(a contract.Alert, res stored) {
 		slog.Info("duplicate alert dropped", "alert_id", a.AlertID, "machine_id", a.MachineID)
 		return
 	}
+	alertDelay.Observe(time.Since(a.TS).Seconds())
 	if res.Opened {
 		b.opened++
 	} else {

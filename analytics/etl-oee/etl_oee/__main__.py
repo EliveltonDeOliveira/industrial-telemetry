@@ -2,7 +2,8 @@
 
 It runs when it starts and then at 5 minutes past every hour. Each run
 recomputes the shifts that ended in the lookback, from the readings in
-telemetry_raw and the ideal cycle in the machines registry.
+telemetry_raw and the ideal cycle in the machines registry. GET /healthz says
+whether the last run succeeded, and GET /metrics has the runs (ADR 0017).
 
 Configuration:
 
@@ -11,9 +12,10 @@ Configuration:
     ETL_TIMEZONE    time zone of the shifts (America/Sao_Paulo)
     ETL_SHIFTS      shifts in local hours (06-14,14-22,22-06)
     ETL_LOOKBACK_H  hours back to look for shifts that ended (24)
+    HTTP_ADDR       address of the HTTP server (:8086)
 
-With --once it runs a single time and exits with 1 if the run fails, for a
-backfill such as: ETL_LOOKBACK_H=72 python -m etl_oee --once
+With --once it runs a single time, without HTTP, and exits with 1 if the run
+fails, for a backfill such as: ETL_LOOKBACK_H=72 python -m etl_oee --once
 """
 
 import logging
@@ -26,12 +28,13 @@ from datetime import datetime, timezone
 
 from .job import Config, next_run, run
 from .logs import JSONFormatter, fields
+from .server import Health, serve_http
 from .store import DBStore
 
 log = logging.getLogger("etl-oee")
 
 
-def run_logged(cfg: Config) -> bool:
+def run_logged(cfg: Config, health: Health) -> bool:
     started = time.monotonic()
     try:
         store = DBStore(cfg.clickhouse_dsn, cfg.postgres_dsn)
@@ -41,11 +44,14 @@ def run_logged(cfg: Config) -> bool:
             store.close()
     except Exception as e:
         # A failed run is not retried: the next one, an hour later, covers the same shifts.
-        log.error("run failed", extra=fields(error=f"{type(e).__name__}: {e}"))
+        error = f"{type(e).__name__}: {e}"
+        health.record(0, time.monotonic() - started, time.time(), error)
+        log.error("run failed", extra=fields(error=error))
         return False
+    duration_s = time.monotonic() - started
+    health.record(len(rows), duration_s, time.time(), None)
     log.info("oee written", extra=fields(
-        rows=len(rows), shifts=sorted({f"{r[1]} {r[2]}" for r in rows}),
-        duration_s=round(time.monotonic() - started, 3)))
+        rows=len(rows), shifts=sorted({f"{r[1]} {r[2]}" for r in rows}), duration_s=round(duration_s, 3)))
     return True
 
 
@@ -59,18 +65,23 @@ def main() -> int:
         log.error("invalid configuration", extra=fields(error=str(e)))
         return 1
 
+    health = Health()
     if "--once" in sys.argv[1:]:
-        return 0 if run_logged(cfg) else 1
+        return 0 if run_logged(cfg, health) else 1
 
     stopping = threading.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: stopping.set())
+    http_addr = os.environ.get("HTTP_ADDR") or ":8086"
+    server = serve_http(http_addr, health)
     log.info("etl-oee started", extra=fields(
-        timezone=str(cfg.tz), shifts=[d.label for d in cfg.shifts], lookback_h=cfg.lookback.total_seconds() / 3600))
+        timezone=str(cfg.tz), shifts=[d.label for d in cfg.shifts], lookback_h=cfg.lookback.total_seconds() / 3600,
+        http_addr=http_addr))
     while not stopping.is_set():
-        run_logged(cfg)
+        run_logged(cfg, health)
         now = datetime.now(timezone.utc)
         stopping.wait((next_run(now) - now).total_seconds())
+    server.shutdown()
     return 0
 
 

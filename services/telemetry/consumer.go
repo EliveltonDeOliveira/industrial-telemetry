@@ -41,6 +41,13 @@ var (
 		Name: "telemetry_failures_total",
 		Help: "Failed attempts that are retried, by operation.",
 	}, []string{"operation"})
+	// The p95 of the load test (ADR 0017). It includes any difference between
+	// the clock of the device, which sets ts, and the clock of this service.
+	ingestDelay = promauto.NewHistogram(prometheus.HistogramOpts{
+		Name:    "telemetry_ingest_delay_seconds",
+		Help:    "Time from the ts of a reading to its insert into telemetry_raw.",
+		Buckets: []float64{0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60, 300},
+	})
 )
 
 type consumer struct {
@@ -104,6 +111,10 @@ func (c *consumer) flush(ctx context.Context, b *batch) error {
 		})
 		if err != nil {
 			return err
+		}
+		now := time.Now()
+		for _, row := range b.rows {
+			ingestDelay.Observe(now.Sub(row.TS).Seconds())
 		}
 	}
 	// A failed commit only means these records are consumed again later,

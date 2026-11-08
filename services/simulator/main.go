@@ -30,6 +30,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/EliveltonDeOliveira/industrial-telemetry/internal/contract"
+	"github.com/EliveltonDeOliveira/industrial-telemetry/internal/httpmetrics"
 )
 
 var (
@@ -101,7 +102,7 @@ func run() error {
 	mux.Handle("GET /metrics", promhttp.Handler())
 	mux.Handle("POST /faults", faultsHandler(machines, time.Now))
 
-	srv := &http.Server{Addr: cfg.httpAddr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
+	srv := &http.Server{Addr: cfg.httpAddr, Handler: httpmetrics.Handler(mux), ReadHeaderTimeout: 5 * time.Second}
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

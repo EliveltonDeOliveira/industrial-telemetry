@@ -230,6 +230,21 @@ services:
       POSTGRES_DSN: postgres://${POSTGRES_USER:-industrial}:${POSTGRES_PASSWORD:-industrial}@postgres:5432/${POSTGRES_DB:-industrial}?sslmode=disable
       ETL_TIMEZONE: ${ETL_TIMEZONE:-America/Sao_Paulo}
       ETL_SHIFTS: ${ETL_SHIFTS:-06-14,14-22,22-06}
+    ports:
+      - "127.0.0.1:8086:8086"
+    restart: unless-stopped
+
+  # Lag of every consumer group and end offset of every partition, for Prometheus.
+  kafka-lag:
+    build:
+      context: ..
+      args:
+        SERVICE: kafka-lag
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:8087:8087"
     restart: unless-stopped
 
   grafana:
