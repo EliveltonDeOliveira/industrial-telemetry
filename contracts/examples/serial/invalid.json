@@ -1,0 +1,42 @@
+[
+  {
+    "case": "missing_schema_version",
+    "field": "schema_version",
+    "message": {"boot_id": 1874019236, "seq": 1042, "state": "running", "good_total": 812, "scrap_total": 9, "temperature_c": 31.25, "vibration_rms": 0.420}
+  },
+  {
+    "case": "unsupported_schema_version",
+    "field": "schema_version",
+    "message": {"schema_version": 2, "boot_id": 1874019236, "seq": 1042, "state": "running", "good_total": 812, "scrap_total": 9, "temperature_c": 31.25, "vibration_rms": 0.420}
+  },
+  {
+    "case": "missing_boot_id",
+    "field": "boot_id",
+    "message": {"schema_version": 1, "seq": 1042, "state": "running", "good_total": 812, "scrap_total": 9, "temperature_c": 31.25, "vibration_rms": 0.420}
+  },
+  {
+    "case": "negative_seq",
+    "field": "seq",
+    "message": {"schema_version": 1, "boot_id": 1874019236, "seq": -1, "state": "running", "good_total": 812, "scrap_total": 9, "temperature_c": 31.25, "vibration_rms": 0.420}
+  },
+  {
+    "case": "unknown_state",
+    "field": "state",
+    "message": {"schema_version": 1, "boot_id": 1874019236, "seq": 1042, "state": "idle", "good_total": 812, "scrap_total": 9, "temperature_c": 31.25, "vibration_rms": 0.420}
+  },
+  {
+    "case": "null_good_total",
+    "field": "good_total",
+    "message": {"schema_version": 1, "boot_id": 1874019236, "seq": 1042, "state": "running", "good_total": null, "scrap_total": 9, "temperature_c": 31.25, "vibration_rms": 0.420}
+  },
+  {
+    "case": "temperature_above_range",
+    "field": "temperature_c",
+    "message": {"schema_version": 1, "boot_id": 1874019236, "seq": 1042, "state": "running", "good_total": 812, "scrap_total": 9, "temperature_c": 130.00, "vibration_rms": 0.420}
+  },
+  {
+    "case": "negative_vibration",
+    "field": "vibration_rms",
+    "message": {"schema_version": 1, "boot_id": 1874019236, "seq": 1042, "state": "running", "good_total": 812, "scrap_total": 9, "temperature_c": 31.25, "vibration_rms": -0.010}
+  }
+]

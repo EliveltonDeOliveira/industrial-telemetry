@@ -23,3 +23,4 @@ Cada ADR registra uma decisão, o contexto em que foi tomada, as alternativas co
 | [0017](0017-metricas-de-latencia-requisicoes-e-lag.md) | Métricas de latência, requisições e lag |
 | [0018](0018-dashboard-da-plataforma.md) | Dashboard da plataforma e séries com label criadas em zero |
 | [0019](0019-teste-de-carga.md) | Teste de carga com um simulator separado e janela de 1000 no Mosquitto |
+| [0020](0020-linha-serial-do-microbit.md) | Linha serial do micro:bit: a telemetria sem `machine_id` e `ts`, completada pelo gateway |

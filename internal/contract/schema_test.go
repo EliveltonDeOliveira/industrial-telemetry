@@ -30,6 +30,20 @@ func TestSchemasMatchGo(t *testing.T) {
 			},
 		},
 		{
+			// The serial line is the telemetry without the fields the gateway sets (ADR 0020).
+			file: "serial.schema.json",
+			fields: slices.DeleteFunc((&Telemetry{}).fields(), func(f field) bool {
+				return f.name == "machine_id" || f.name == "ts"
+			}),
+			keywords: map[string]map[string]any{
+				"schema_version": {"const": SchemaVersion},
+				"boot_id":        {"minimum": 0, "maximum": math.MaxUint32},
+				"state":          {"enum": states},
+				"temperature_c":  {"minimum": MinTemperatureC, "maximum": MaxTemperatureC},
+				"vibration_rms":  {"minimum": 0, "maximum": MaxVibrationRMS},
+			},
+		},
+		{
 			file:   "alert.schema.json",
 			fields: (&Alert{}).fields(),
 			keywords: map[string]map[string]any{

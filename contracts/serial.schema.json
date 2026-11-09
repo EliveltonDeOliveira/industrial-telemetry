@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Serial line",
+  "description": "One reading printed by the micro:bit firmware on the USB serial: one JSON object per line, once per second, at 115200 baud 8N1, ending in \\n or \\r\\n, up to 256 bytes with the line ending. It is the telemetry message without machine_id and ts, which the gateway sets before publishing (ADR 0020). Every field is required and null counts as missing. Unknown fields are kept by the gateway.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "boot_id",
+    "seq",
+    "state",
+    "good_total",
+    "scrap_total",
+    "temperature_c",
+    "vibration_rms"
+  ],
+  "properties": {
+    "schema_version": {
+      "description": "Telemetry message format version.",
+      "const": 1
+    },
+    "boot_id": {
+      "description": "Random number from the chip's random number generator, drawn each time the micro:bit powers on. seq and the counters restart with it.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295
+    },
+    "seq": {
+      "description": "Reading sequence within the same boot_id, starting at 0.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "state": {
+      "description": "Machine operating state, decided by the firmware from the vibration.",
+      "enum": ["running", "stopped"]
+    },
+    "good_total": {
+      "description": "Good parts counted with button A since the micro:bit powered on.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "scrap_total": {
+      "description": "Scrap parts counted with button B since the micro:bit powered on.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "temperature_c": {
+      "description": "Temperature in degrees Celsius from the nRF52833 sensor, in steps of 0.25, printed with two decimals. Values outside the range are sensor faults.",
+      "type": "number",
+      "minimum": -40,
+      "maximum": 125
+    },
+    "vibration_rms": {
+      "description": "RMS acceleration in g, printed with three decimals, up to the full scale of the micro:bit accelerometer.",
+      "type": "number",
+      "minimum": 0,
+      "maximum": 16
+    }
+  }
+}
